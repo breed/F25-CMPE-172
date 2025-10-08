@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ExampleController {
     private final KVRespository kvRepository;
 
-    @Value("token.seed")
+    @Value("${token.seed}")
     String tokenSeed;
 
     public ExampleController(KVRespository kvRespository) {
