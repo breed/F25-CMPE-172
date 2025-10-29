@@ -57,6 +57,11 @@ public class SimpleZKClient implements Runnable {
             System.out.println("Trying to become the boss!");
             zk.create("/boss", name.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
 
+            try {
+                zk.create("/boss", name.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+            } catch (KeeperException.NodeExistsException ee) {
+                System.out.println("There is already a boss: " + new String(data));
+            }
             childrenWatcher.process(new WatchedEvent(Watcher.Event.EventType.NodeChildrenChanged, null, "/"));
             for (int i = 0; i < 10; i++) {
                 zk.setData(name, (description + " is bored... " + i).getBytes(), -1);
