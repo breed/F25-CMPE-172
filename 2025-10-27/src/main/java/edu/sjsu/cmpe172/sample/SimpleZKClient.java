@@ -13,6 +13,7 @@ public class SimpleZKClient implements Runnable {
     @CommandLine.Option(names = "--description", defaultValue = "anonymous")
     String description;
     private ZooKeeper zk;
+    private String name;
 
     public static void main(String[] args) {
         System.exit(new CommandLine(new SimpleZKClient()).execute(args));
@@ -23,6 +24,16 @@ public class SimpleZKClient implements Runnable {
             System.out.println("Children changed! Children are now:");
             try {
                 var children = zk.getChildren("/", this.childrenWatcher);
+                /* option 1
+                if (!children.contains("boss")) {
+                    System.out.println(children);
+                    try {
+                        zk.create("/boss", name.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+                    } catch (KeeperException.NodeExistsException ex) {
+                        System.out.println("Boss exists");
+                    }
+                }
+                 */
                 children.forEach(child -> {
                     try {
                         byte[] data = zk.getData("/" + child, false, null);
@@ -51,17 +62,11 @@ public class SimpleZKClient implements Runnable {
                    System.exit(2);
                }
             });
-            var name = zk.create("/simple-", description.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+            name = zk.create("/simple-", description.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
             System.out.println("I am " + name);
 
             System.out.println("Trying to become the boss!");
-            zk.create("/boss", name.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
-
-            try {
-                zk.create("/boss", name.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
-            } catch (KeeperException.NodeExistsException ee) {
-                System.out.println("There is already a boss: " + new String(data));
-            }
+            tryToBeBoss();
             childrenWatcher.process(new WatchedEvent(Watcher.Event.EventType.NodeChildrenChanged, null, "/"));
             for (int i = 0; i < 10; i++) {
                 zk.setData(name, (description + " is bored... " + i).getBytes(), -1);
@@ -70,6 +75,26 @@ public class SimpleZKClient implements Runnable {
         } catch (IOException | InterruptedException | KeeperException e) {
             System.out.println("ZooKeeper session create failed: " + e);
             System.exit(2);
+        }
+    }
+
+    private void tryToBeBoss() throws KeeperException, InterruptedException {
+        try {
+            zk.create("/boss", name.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+        } catch (KeeperException.NodeExistsException ee) {
+            try {
+                var data = zk.getData("/boss", event -> {
+                    System.out.println("got event: " + event);
+                        try {
+                            tryToBeBoss();
+                        } catch (KeeperException | InterruptedException e) {
+                            System.out.println("Got exception when becoming boss: " + e);
+                        }
+                }, null);
+            } catch (KeeperException.NoNodeException | KeeperException.ConnectionLossException e) {
+                tryToBeBoss();
+            }
+            System.out.println("There is already a boss: " + new String(data));
         }
     }
 
